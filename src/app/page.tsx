@@ -1,65 +1,133 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+const THEMES = [
+  "Climate-Adaptive Waterfront",
+  "Industrial Revival",
+  "Bills Dynasty City",
+  "Retro-Futurism 1980s",
+  "Tech Boom Buffalo",
+  "Post-Snowpocalypse Survival",
+  "Utopian Transit Era",
+];
+
+function glitchLabel(v: number) {
+  if (v < 34) return "Minor";
+  if (v < 67) return "Unstable";
+  return "Chaotic";
+}
 
 export default function Home() {
+  const [year, setYear] = useState("2075");
+  const [theme, setTheme] = useState(THEMES[0]);
+  const [glitch, setGlitch] = useState(50);
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onGenerate() {
+    setLoading(true);
+    setError(null);
+    setResp(null);
+
+    try {
+      const yearNum = Number(year);
+      const r = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: yearNum,
+          theme,
+          glitch,
+        }),
+      });
+
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || "Request failed");
+
+      setResp(data);
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="min-h-screen p-6">
+      <div className="mx-auto max-w-3xl">
+        <h1 className="text-3xl font-bold">Buffalo Timeline Glitch Generator</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          One click → alternate-history Buffalo landmarks.
+        </p>
+
+        <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="text-sm font-medium">Year</label>
+              <input
+                className="mt-1 w-full rounded-lg border px-3 py-2"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                placeholder="e.g. 1920 or 2075"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Theme</label>
+              <select
+                className="mt-1 w-full rounded-lg border px-3 py-2"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+              >
+                {THEMES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Glitch: {glitchLabel(glitch)}</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={glitch}
+                onChange={(e) => setGlitch(Number(e.target.value))}
+                className="mt-3 w-full"
+              />
+              <div className="mt-1 flex justify-between text-xs text-gray-500">
+                <span>Minor</span>
+                <span>Unstable</span>
+                <span>Chaotic</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={onGenerate}
+            disabled={loading}
+            className="mt-5 rounded-xl bg-black px-4 py-2 text-white disabled:opacity-50"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {loading ? "Generating..." : "Generate Timeline"}
+          </button>
+
+          {error && (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+
+          {resp && (
+            <pre className="mt-4 overflow-auto rounded-lg bg-gray-50 p-3 text-xs">
+              {JSON.stringify(resp, null, 2)}
+            </pre>
+          )}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
