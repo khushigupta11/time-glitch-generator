@@ -44,7 +44,10 @@ export default function Home() {
       });
 
       const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "Request failed");
+      if (!r.ok) {
+        setResp(data); // <-- show raw/debug payload in the UI
+        throw new Error(data?.error || "Request failed");
+  }
 
       setResp(data);
     } catch (e: any) {
