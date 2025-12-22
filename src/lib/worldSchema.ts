@@ -6,6 +6,10 @@ export type WorldLandmarkPlan = {
   id: Landmark["id"];
   name: string;
 
+  // NEW: Buffalo-specific visual anchors to keep generations grounded
+  // (4–6 short, imageable cues; avoid text/signage)
+  buffaloAnchors: string[];
+
   // what must remain recognizable to preserve landmark identity
   mustKeep: string[];
 
@@ -25,14 +29,14 @@ export type WorldState = {
   globalStyle: {
     realism: "photorealistic";
     lighting: string; // e.g. “overcast winter daylight”
-    palette: string;  // e.g. “cool neutrals with industrial rust accents”
-    camera: string;   // e.g. “street-level wide lens”
-    mood: string;     // e.g. “optimistic but unstable”
+    palette: string; // e.g. “cool neutrals with industrial rust accents”
+    camera: string; // e.g. “street-level wide lens”
+    mood: string; // e.g. “optimistic but unstable”
   };
 
-  motifs: string[];       // recurring details across all images
+  motifs: string[]; // recurring details across all images
   glitchSignature: string[]; // how the glitch should look visually
-  glitchNotes: string;    // short summary for UI
+  glitchNotes: string; // short summary for UI
 
   landmarks: WorldLandmarkPlan[];
 };
