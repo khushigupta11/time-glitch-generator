@@ -76,10 +76,10 @@ npm run dev
 ![Main Page](screenshots/main-page.png)
 
 ### Generated Timeline
-![Generated Timeline](screenshots/generated-timeline.png)
+![Generated Timeline](screenshots/generated-view.png)
 
 ### Expanded Landmark View
-![Expanded Landmark View](screenshots/expanded-view.png)
+![Expanded Landmark View](screenshots/expanded-modal.png)
 
 ---
 
