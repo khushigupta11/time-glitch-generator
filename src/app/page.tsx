@@ -1,4 +1,3 @@
-// src/app/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -32,16 +31,48 @@ function isOverloadPayload(x: any): x is ApiOverloadPayload {
   return x && x.errorCode === "MODEL_OVERLOADED";
 }
 
+type Stage =
+  | "idle"
+  | "world"
+  | "prompting"
+  | "images"
+  | "finalizing"
+  | "done"
+  | "overload"
+  | "error";
+
+function stageLabel(s: Stage) {
+  switch (s) {
+    case "world":
+      return "Tuning the timeline…";
+    case "prompting":
+      return "Wiring the vibes…";
+    case "images":
+      return "Rendering 3 glitched frames…";
+    case "finalizing":
+      return "Polishing the output…";
+    case "overload":
+      return "Glitch surge — model overloaded…";
+    case "error":
+      return "Something went wrong…";
+    default:
+      return "";
+  }
+}
+
 export default function Home() {
-  const [year, setYear] = useState("2075");
-  const [theme, setTheme] = useState(THEMES[0]);
-  const [glitch, setGlitch] = useState(50);
+  const DEFAULT_YEAR = "2075";
+  const DEFAULT_THEME = THEMES[0];
+  const DEFAULT_GLITCH = 50;
+
+  const [year, setYear] = useState(DEFAULT_YEAR);
+  const [theme, setTheme] = useState(DEFAULT_THEME);
+  const [glitch, setGlitch] = useState(DEFAULT_GLITCH);
 
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Overload UX
   const [overload, setOverload] = useState<ApiOverloadPayload | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const nowTick = useNowTick(250);
@@ -53,12 +84,63 @@ export default function Home() {
 
   const canRetry = !loading && (!!overload ? cooldownRemainingMs === 0 : true);
 
+  const [stage, setStage] = useState<Stage>("idle");
+  const stageTimersRef = useRef<number[]>([]);
+
+  function clearStageTimers() {
+    for (const id of stageTimersRef.current) window.clearTimeout(id);
+    stageTimersRef.current = [];
+  }
+
+  function startStages() {
+    clearStageTimers();
+    setStage("world");
+    stageTimersRef.current.push(
+      window.setTimeout(() => setStage("prompting"), 900),
+      window.setTimeout(() => setStage("images"), 2200),
+      window.setTimeout(() => setStage("finalizing"), 5200)
+    );
+  }
+
+  function stopStages(final: Stage) {
+    clearStageTimers();
+    setStage(final);
+    if (final === "done" || final === "idle") return;
+    stageTimersRef.current.push(window.setTimeout(() => setStage("idle"), 2500));
+  }
+
+  const inputsDisabled = loading;
+
+  // Modal state
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+
+  function onReset() {
+    if (loading) return;
+
+    setYear(DEFAULT_YEAR);
+    setTheme(DEFAULT_THEME);
+    setGlitch(DEFAULT_GLITCH);
+
+    setResp(null);
+    setError(null);
+    setOverload(null);
+    setCooldownUntil(null);
+    setOpenIdx(null);
+
+    stopStages("idle");
+  }
+
   async function onGenerate() {
+    if (loading) return;
+
     setLoading(true);
     setError(null);
     setResp(null);
     setOverload(null);
     setCooldownUntil(null);
+    setOpenIdx(null);
+
+    startStages();
 
     try {
       const yearNum = Number(year);
@@ -72,51 +154,83 @@ export default function Home() {
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        // Handle our structured overload response cleanly
         if (r.status === 503 && isOverloadPayload(data)) {
           setOverload(data);
           const ms = typeof data.retryAfterMs === "number" ? data.retryAfterMs : 8000;
           setCooldownUntil(Date.now() + ms);
-          return; // don't throw; we handled it
+          stopStages("overload");
+          return;
         }
 
-        // Legacy / other errors
-        setResp(data); // show debug payload only for non-overload errors
+        setResp(data);
+        stopStages("error");
         throw new Error(data?.error || "Request failed");
       }
 
       setResp(data);
+      stopStages("done");
     } catch (e: any) {
       setError(e?.message ?? "Unknown error");
+      stopStages("error");
     } finally {
       setLoading(false);
     }
   }
 
+  // ESC to close modal
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenIdx(null);
+    }
+    if (openIdx !== null) window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openIdx]);
+
+  // ✅ Lock background scroll when modal is open
+  useEffect(() => {
+    if (openIdx === null) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [openIdx]);
+
+  const modalData =
+    openIdx !== null && resp?.world && Array.isArray(resp?.images) && resp.images[openIdx]
+      ? {
+          img: resp.images[openIdx],
+          plan: resp.world.landmarks?.[openIdx],
+          world: resp.world,
+        }
+      : null;
+
   return (
     <main className="min-h-screen p-6">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-bold">Buffalo Timeline Glitch Generator</h1>
-        <p className="mt-2 text-sm text-gray-600">One click → alternate-history Buffalo landmarks.</p>
+        <h1 className="text-3xl font-bold text-white">Buffalo Timeline Glitch Generator</h1>
+        <p className="mt-2 text-sm text-white/70">One click → alternate-history Buffalo landmarks.</p>
 
-        <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/95 p-5 shadow-sm text-gray-900">
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <label className="text-sm font-medium">Year</label>
+              <label className="text-sm font-medium text-gray-900">Year</label>
               <input
-                className="mt-1 w-full rounded-lg border px-3 py-2"
+                className="mt-1 w-full rounded-lg border px-3 py-2 placeholder:text-gray-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
                 placeholder="e.g. 1920 or 2075"
+                disabled={inputsDisabled}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium">Theme</label>
+              <label className="text-sm font-medium text-gray-900">Theme</label>
               <select
-                className="mt-1 w-full rounded-lg border px-3 py-2"
+                className="mt-1 w-full rounded-lg border px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
+                disabled={inputsDisabled}
               >
                 {THEMES.map((t) => (
                   <option key={t} value={t}>
@@ -127,14 +241,17 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Glitch: {glitchLabel(glitch)}</label>
+              <label className="text-sm font-medium text-gray-900">
+                Glitch: {glitchLabel(glitch)}
+              </label>
               <input
                 type="range"
                 min={0}
                 max={100}
                 value={glitch}
                 onChange={(e) => setGlitch(Number(e.target.value))}
-                className="mt-3 w-full"
+                className="mt-3 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={inputsDisabled}
               />
               <div className="mt-1 flex justify-between text-xs text-gray-500">
                 <span>Minor</span>
@@ -144,15 +261,32 @@ export default function Home() {
             </div>
           </div>
 
-          <button
-            onClick={onGenerate}
-            disabled={loading}
-            className="mt-5 rounded-xl bg-black px-4 py-2 text-white disabled:opacity-50"
-          >
-            {loading ? "Generating..." : "Generate Timeline"}
-          </button>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              onClick={onGenerate}
+              disabled={loading || (!!overload && cooldownRemainingMs > 0)}
+              className="rounded-xl bg-black px-4 py-2 text-white disabled:opacity-50"
+            >
+              {loading ? "Generating..." : "Generate Timeline"}
+            </button>
 
-          {/* Overload UX (replaces scary raw error) */}
+            <button
+              onClick={onReset}
+              disabled={loading}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-800 disabled:opacity-50"
+              title="Reset inputs and clear results"
+            >
+              Reset
+            </button>
+          </div>
+
+          {loading && (
+            <div className="mt-4 flex items-center gap-3 rounded-2xl border bg-gray-50 p-4">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-black" />
+              <div className="text-sm text-gray-700">{stageLabel(stage)}</div>
+            </div>
+          )}
+
           {overload && (
             <div className="mt-4 rounded-2xl border bg-amber-50 p-4">
               <div className="text-sm font-semibold text-amber-900">
@@ -183,12 +317,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* Normal errors */}
           {error && !overload && (
             <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           )}
 
-          {/* Success UI */}
           {resp?.world && (
             <div className="mt-6 space-y-4">
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -203,19 +335,28 @@ export default function Home() {
                     </span>
                   ))}
                 </div>
+
+                <div className="mt-3 text-xs text-gray-500">
+                  Tip: click an image to expand + read what changed.
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                {resp.images?.map((img: any) => (
-                  <div
+                {resp.images?.map((img: any, i: number) => (
+                  <button
                     key={img.id}
-                    className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+                    type="button"
+                    onClick={() => setOpenIdx(i)}
+                    className="overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    title="Click to expand"
+                    aria-label={`Open ${img.landmark}`}
                   >
                     <div className="p-3">
                       <div className="text-sm font-medium">{img.landmark}</div>
                       <div className="text-xs text-gray-500">
                         {resp.world.theme} • {resp.world.year} • glitch: {resp.world.glitch}
                       </div>
+                      <div className="mt-1 text-[11px] text-gray-400">Click to expand</div>
                     </div>
 
                     <img
@@ -223,25 +364,12 @@ export default function Home() {
                       alt={img.landmark}
                       className="h-64 w-full object-cover"
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
-
-              {/* Debug (optional while building) */}
-              {resp.prompts && (
-                <details className="rounded-2xl border bg-white p-4">
-                  <summary className="cursor-pointer text-sm font-medium">
-                    Show prompts (debug)
-                  </summary>
-                  <pre className="mt-3 whitespace-pre-wrap text-xs text-gray-700">
-                    {resp.prompts.join("\n\n---\n\n")}
-                  </pre>
-                </details>
-              )}
             </div>
           )}
 
-          {/* Error/debug fallback UI (only for non-overload responses) */}
           {resp && !resp.world && !overload && (
             <pre className="mt-4 overflow-auto rounded-lg bg-gray-50 p-3 text-xs">
               {JSON.stringify(resp, null, 2)}
@@ -249,11 +377,115 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* ✅ Modal: now fits viewport at 100% zoom */}
+      {modalData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setOpenIdx(null)}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
+              <div>
+                <div className="text-sm text-gray-500">Expanded view</div>
+                <div className="text-xl font-semibold text-gray-900">{modalData.img.landmark}</div>
+                <div className="mt-1 text-xs text-gray-500">
+                  {modalData.world.theme} • {modalData.world.year} • glitch: {modalData.world.glitch}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setOpenIdx(null)}
+                className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                aria-label="Close"
+                title="Close (Esc)"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* critical: allow inner scroll */}
+            <div className="flex-1 min-h-0">
+              <div className="grid h-full md:grid-cols-2">
+                {/* Left: image stays contained */}
+                <div className="bg-black flex items-center justify-center min-h-0">
+                  <img
+                    src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
+                    alt={modalData.img.landmark}
+                    className="max-h-full w-full object-contain"
+                    style={{ maxHeight: "calc(100vh - 2rem - 73px)" }} // 73px ≈ header height
+                  />
+                </div>
+
+                {/* Right: scrollable panel */}
+                <div className="min-h-0 overflow-y-auto p-5">
+                  <div className="text-sm font-semibold text-gray-900">
+                    How it differs in this timeline
+                  </div>
+
+                  <div className="mt-3 space-y-4 text-sm text-gray-700">
+                    <div className="rounded-xl border p-3">
+                      <div className="text-xs font-semibold text-gray-600">
+                        What changed (glitched modifications)
+                      </div>
+                      {modalData.plan?.changes?.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5">
+                          {modalData.plan.changes.slice(0, 8).map((c: string, idx: number) => (
+                            <li key={`${idx}-${c}`}>{c}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-gray-500">
+                          Subtle civic upgrades + atmosphere changes consistent with the theme.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border p-3">
+                      <div className="text-xs font-semibold text-gray-600">
+                        Still recognizable because…
+                      </div>
+                      {modalData.plan?.mustKeep?.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5">
+                          {modalData.plan.mustKeep.slice(0, 8).map((m: string, idx: number) => (
+                            <li key={`${idx}-${m}`}>{m}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-gray-500">
+                          Core landmark form + Buffalo setting cues are preserved.
+                        </p>
+                      )}
+                    </div>
+
+                    {modalData.plan?.cameraHint ? (
+                      <div className="rounded-xl border p-3">
+                        <div className="text-xs font-semibold text-gray-600">Camera hint</div>
+                        <div className="mt-1 text-sm text-gray-700">{modalData.plan.cameraHint}</div>
+                      </div>
+                    ) : null}
+
+                    <div className="text-xs text-gray-500">
+                      Tip: press <span className="font-semibold">Esc</span> to close.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* end inner */}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-/** small helper: re-render every `ms` so our countdown updates */
 function useNowTick(ms: number) {
   const [now, setNow] = useState(() => Date.now());
   const msRef = useRef(ms);

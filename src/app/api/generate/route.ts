@@ -10,14 +10,19 @@ import { generateImageBase64 } from "@/lib/geminiImage";
 
 export const runtime = "nodejs";
 
-// Optional: basic server-side timeout guard (keeps dev from hanging forever)
 const IMAGE_TIMEOUT_MS = 45_000;
+
+/**
+ * Debug gating:
+ * - By default we do NOT send prompts/landmarks/raw to the client.
+ * - Enable by setting DEBUG_PROMPTS=1 (server env).
+ */
+const DEBUG_PROMPTS = process.env.DEBUG_PROMPTS === "1";
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
   try {
-    // generateImageBase64 doesn't accept abort, but this still protects route from waiting forever
     return await Promise.race([
       p,
       new Promise<T>((_, rej) =>
@@ -42,8 +47,6 @@ function isOverloadedErrorMessage(message: string) {
 }
 
 function overloadedResponse(args: { phase: "text" | "image" | "unknown"; detail?: string }) {
-  // Keep this small + consistent so UI can render a nice message.
-  // Add jitter so people don’t all retry at exactly the same moment.
   const base = 6500;
   const jitter = Math.floor(Math.random() * 4000); // 0–4s
   const retryAfterMs = base + jitter;
@@ -56,15 +59,12 @@ function overloadedResponse(args: { phase: "text" | "image" | "unknown"; detail?
       message:
         "The timeline generator is temporarily overloaded (glitch surge). Please wait a few seconds and try again.",
       retryAfterMs,
-      // Keep a short detail for debugging (optional). UI will not show raw stack.
+      // keep short detail for logs/debugging; UI shouldn’t show raw stack
       detail: args.detail ? String(args.detail).slice(0, 300) : undefined,
     },
     {
       status: 503,
-      headers: {
-        // Not required, but nice to have. Some clients/logs use it.
-        "Retry-After": String(Math.ceil(retryAfterMs / 1000)),
-      },
+      headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) },
     }
   );
 }
@@ -105,7 +105,6 @@ export async function POST(req: Request) {
       if (isOverloadedErrorMessage(msg)) {
         return overloadedResponse({ phase: "text", detail: msg });
       }
-      // Bubble other errors
       throw err;
     }
 
@@ -115,13 +114,18 @@ export async function POST(req: Request) {
       const jsonStr = extractFirstJsonObject(raw);
       world = JSON.parse(jsonStr) as WorldState;
     } catch {
-      return NextResponse.json({ error: "Model did not return valid JSON", raw }, { status: 502 });
+      return NextResponse.json(
+        DEBUG_PROMPTS ? { error: "Model did not return valid JSON", raw } : { error: "Model did not return valid JSON" },
+        { status: 502 }
+      );
     }
 
     // Safety checks (Phase 2 additions)
     if (!world.landmarks || world.landmarks.length < 3) {
       return NextResponse.json(
-        { error: "WorldState missing landmark plans", world },
+        DEBUG_PROMPTS
+          ? { error: "WorldState missing landmark plans", world }
+          : { error: "WorldState missing landmark plans" },
         { status: 502 }
       );
     }
@@ -129,7 +133,9 @@ export async function POST(req: Request) {
       const lm = world.landmarks[i] as any;
       if (!Array.isArray(lm?.buffaloAnchors) || lm.buffaloAnchors.length < 2) {
         return NextResponse.json(
-          { error: "WorldState missing buffaloAnchors for one or more landmarks", world },
+          DEBUG_PROMPTS
+            ? { error: "WorldState missing buffaloAnchors for one or more landmarks", world }
+            : { error: "WorldState missing buffaloAnchors for one or more landmarks" },
           { status: 502 }
         );
       }
@@ -138,7 +144,7 @@ export async function POST(req: Request) {
     // 5) Build 3 deterministic prompts from the world JSON
     const prompts = [0, 1, 2].map((i) => buildImagePrompt(world, i));
 
-    // 6) Generate 3 images (sequential to reduce overload/rate-limit pain)
+    // 6) Generate 3 images (sequential)
     const images: Array<{ id: string; landmark: string; mimeType: string; base64: string }> = [];
 
     for (let i = 0; i < prompts.length; i++) {
@@ -164,15 +170,14 @@ export async function POST(req: Request) {
       }
     }
 
-    // 7) Return everything the UI needs
-    return NextResponse.json({
-      ok: true,
-      received: { year, theme, glitch, glitchTier },
-      landmarks, // helpful for debugging drift (optional)
-      world,
-      images,
-      prompts, // keep for debugging; remove later
-    });
+    // 7) Return everything the UI needs (NO prompts/landmarks by default)
+    const payload: any = { ok: true, world, images };
+
+    if (DEBUG_PROMPTS) {
+      payload.debug = { received: { year, theme, glitch, glitchTier }, landmarks, prompts };
+    }
+
+    return NextResponse.json(payload);
   } catch (err: any) {
     const message = String(err?.message ?? "Unknown error");
     const status = isOverloadedErrorMessage(message) ? 503 : 500;
