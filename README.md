@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🕰️ Buffalo Timeline Glitch Generator
 
-## Getting Started
+*What if Buffalo evolved down a different timeline?*
 
-First, run the development server:
+An AI-powered web app that imagines alternate-history futures of Buffalo landmarks.  
+Pick a year, choose a theme, dial up the “glitch,” and watch familiar places transform into surreal timelines shaped by climate shifts, tech booms, utopias, or chaos.  
+It’s a playful experiment in speculative design, blending creativity with AI-driven worldbuilding.
 
+---
+
+## How It Works
+
+1. Select a year, theme, and glitch level.
+2. The app uses an AI model to generate a coherent alternate timeline for Buffalo.
+3. Three iconic landmarks are reimagined visually while preserving their identity.
+4. Click any image to expand it and explore how that timeline differs from reality.
+
+The experience is designed to be simple, interactive, and fun — no prompts or technical knowledge required.
+
+---
+
+## Features
+
+- 🧠 AI-generated alternate timelines grounded in real Buffalo landmarks  
+- 🎚️ Glitch slider controlling stability vs. chaos in the world  
+- 🖼️ Clickable image cards with expanded explanations  
+- 🔄 Reset & regenerate for endless experimentation  
+
+---
+
+## Tech Stack
+
+- **Framework:** Next.js (App Router)
+- **Frontend:** React 19 + Tailwind CSS
+- **AI Models:**
+  - Gemini 2.5 Flash (world & timeline generation)
+  - Gemini 2.5 Flash Image (image generation)
+- **Language:** TypeScript
+
+---
+
+## Running Locally
+
+### 1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/khushigupta11/time-glitch-generator.git
+cd time-glitch-generator
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install Dependencies
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Set up environment variables
+#### Create a .env file in the root directory:
+```bash
+GEMINI_API_KEY=your_api_key_here
+```
+#### (Optional, for debugging only)
+```bash
+DEBUG_PROMPTS=1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Start the development server
+```bash
+npm run dev
+```
+#### Open http://localhost:3000 in your browser.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Screenshots
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Main Page
+![Main Page](screenshots/main-page.png)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Generated Timeline
+![Generated Timeline](screenshots/generated-timeline.png)
 
-## Deploy on Vercel
+### Expanded Landmark View
+![Expanded Landmark View](screenshots/expanded-view.png)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+MIT License
+© 2025 Khushi Gupta
