@@ -1,16 +1,20 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
- * Simple retry helper for transient Gemini overload / 5xx.
+ * Retry helper for transient Gemini overload / 5xx.
  * - Retries only on likely-transient errors (503, 429, some network hiccups)
- * - Uses exponential backoff + jitter
+ * - Exponential backoff + jitter
+ *
+ * NOTE: We keep retries small-ish so we don't silently add tons of wait time.
+ * The UI (Plan A) will still handle overload with a friendly message + manual retry.
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
-  opts?: { retries?: number; baseDelayMs?: number }
+  opts?: { retries?: number; baseDelayMs?: number; maxDelayMs?: number }
 ): Promise<T> {
-  const retries = opts?.retries ?? 4; // total attempts = retries+1
+  const retries = opts?.retries ?? 2; // total attempts = retries+1
   const baseDelayMs = opts?.baseDelayMs ?? 600;
+  const maxDelayMs = opts?.maxDelayMs ?? 3000;
 
   let lastErr: any;
 
@@ -21,19 +25,33 @@ async function withRetry<T>(
       lastErr = e;
 
       const msg = String(e?.message ?? e);
-      const is503 = msg.includes("503") || msg.toLowerCase().includes("overloaded");
-      const is429 = msg.includes("429") || msg.toLowerCase().includes("rate");
+      const m = msg.toLowerCase();
+
+      const is503 =
+        msg.includes("503") ||
+        m.includes("overloaded") ||
+        m.includes("service unavailable") ||
+        m.includes("internal error") ||
+        m.includes("backend error");
+
+      const is429 =
+        msg.includes("429") ||
+        m.includes("rate") ||
+        m.includes("quota") ||
+        m.includes("resource has been exhausted");
+
       const isNet =
-        msg.toLowerCase().includes("fetch") ||
-        msg.toLowerCase().includes("network") ||
-        msg.toLowerCase().includes("econnreset") ||
-        msg.toLowerCase().includes("etimedout");
+        m.includes("fetch") ||
+        m.includes("network") ||
+        m.includes("econnreset") ||
+        m.includes("etimedout") ||
+        m.includes("timeout");
 
       const transient = is503 || is429 || isNet;
 
       if (!transient || attempt === retries) break;
 
-      const exp = baseDelayMs * Math.pow(2, attempt);
+      const exp = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));
       const jitter = Math.floor(Math.random() * 250);
       const delay = exp + jitter;
 
@@ -59,14 +77,12 @@ export async function generateImageBase64(args: {
     async () => {
       return await model.generateContent(prompt);
     },
-    { retries: 4, baseDelayMs: 700 }
+    { retries: 2, baseDelayMs: 700, maxDelayMs: 3000 }
   );
 
   const parts = result.response.candidates?.[0]?.content?.parts ?? [];
 
-  const imagePart = parts.find(
-    (p: any) => p.inlineData?.mimeType?.startsWith("image/")
-  );
+  const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith("image/"));
   const textPart = parts.find((p: any) => typeof p.text === "string");
 
   if (!imagePart?.inlineData?.data) {

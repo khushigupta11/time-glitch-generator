@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 
 // Optional: basic server-side timeout guard (keeps dev from hanging forever)
 const IMAGE_TIMEOUT_MS = 45_000;
+
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
@@ -26,6 +27,46 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
   } finally {
     clearTimeout(t);
   }
+}
+
+function isOverloadedErrorMessage(message: string) {
+  const m = message.toLowerCase();
+  return (
+    m.includes("503") ||
+    m.includes("overloaded") ||
+    m.includes("service unavailable") ||
+    m.includes("resource has been exhausted") ||
+    m.includes("rate limit") ||
+    m.includes("quota")
+  );
+}
+
+function overloadedResponse(args: { phase: "text" | "image" | "unknown"; detail?: string }) {
+  // Keep this small + consistent so UI can render a nice message.
+  // Add jitter so people don’t all retry at exactly the same moment.
+  const base = 6500;
+  const jitter = Math.floor(Math.random() * 4000); // 0–4s
+  const retryAfterMs = base + jitter;
+
+  return NextResponse.json(
+    {
+      ok: false,
+      errorCode: "MODEL_OVERLOADED",
+      phase: args.phase,
+      message:
+        "The timeline generator is temporarily overloaded (glitch surge). Please wait a few seconds and try again.",
+      retryAfterMs,
+      // Keep a short detail for debugging (optional). UI will not show raw stack.
+      detail: args.detail ? String(args.detail).slice(0, 300) : undefined,
+    },
+    {
+      status: 503,
+      headers: {
+        // Not required, but nice to have. Some clients/logs use it.
+        "Retry-After": String(Math.ceil(retryAfterMs / 1000)),
+      },
+    }
+  );
 }
 
 export async function POST(req: Request) {
@@ -56,7 +97,17 @@ export async function POST(req: Request) {
       landmarks,
     });
 
-    const raw = await generateWorldStateJson({ apiKey, prompt: worldPrompt });
+    let raw: string;
+    try {
+      raw = await generateWorldStateJson({ apiKey, prompt: worldPrompt });
+    } catch (err: any) {
+      const msg = String(err?.message ?? err ?? "");
+      if (isOverloadedErrorMessage(msg)) {
+        return overloadedResponse({ phase: "text", detail: msg });
+      }
+      // Bubble other errors
+      throw err;
+    }
 
     // 4) Parse world-state JSON robustly
     let world: WorldState;
@@ -69,7 +120,10 @@ export async function POST(req: Request) {
 
     // Safety checks (Phase 2 additions)
     if (!world.landmarks || world.landmarks.length < 3) {
-      return NextResponse.json({ error: "WorldState missing landmark plans", world }, { status: 502 });
+      return NextResponse.json(
+        { error: "WorldState missing landmark plans", world },
+        { status: 502 }
+      );
     }
     for (let i = 0; i < 3; i++) {
       const lm = world.landmarks[i] as any;
@@ -88,18 +142,26 @@ export async function POST(req: Request) {
     const images: Array<{ id: string; landmark: string; mimeType: string; base64: string }> = [];
 
     for (let i = 0; i < prompts.length; i++) {
-      const img = await withTimeout(
-        generateImageBase64({ apiKey, prompt: prompts[i] }),
-        IMAGE_TIMEOUT_MS,
-        `Image ${i + 1}`
-      );
+      try {
+        const img = await withTimeout(
+          generateImageBase64({ apiKey, prompt: prompts[i] }),
+          IMAGE_TIMEOUT_MS,
+          `Image ${i + 1}`
+        );
 
-      images.push({
-        id: world.landmarks[i].id,
-        landmark: world.landmarks[i].name,
-        mimeType: img.mimeType,
-        base64: img.base64,
-      });
+        images.push({
+          id: world.landmarks[i].id,
+          landmark: world.landmarks[i].name,
+          mimeType: img.mimeType,
+          base64: img.base64,
+        });
+      } catch (err: any) {
+        const msg = String(err?.message ?? err ?? "");
+        if (isOverloadedErrorMessage(msg)) {
+          return overloadedResponse({ phase: "image", detail: msg });
+        }
+        throw err;
+      }
     }
 
     // 7) Return everything the UI needs
@@ -112,12 +174,12 @@ export async function POST(req: Request) {
       prompts, // keep for debugging; remove later
     });
   } catch (err: any) {
-    // If Gemini overload bubbles up, surface it clearly
-    const message = err?.message ?? "Unknown error";
-    const status =
-      String(message).includes("503") || String(message).toLowerCase().includes("overloaded")
-        ? 503
-        : 500;
+    const message = String(err?.message ?? "Unknown error");
+    const status = isOverloadedErrorMessage(message) ? 503 : 500;
+
+    if (status === 503) {
+      return overloadedResponse({ phase: "unknown", detail: message });
+    }
 
     return NextResponse.json({ error: message }, { status });
   }
