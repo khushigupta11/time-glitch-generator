@@ -60,6 +60,15 @@ function stageLabel(s: Stage) {
   }
 }
 
+/** Convert base64 (no data: prefix) -> Blob */
+function base64ToBlob(base64: string, mimeType: string) {
+  const byteChars = atob(base64);
+  const byteNums = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+  const byteArray = new Uint8Array(byteNums);
+  return new Blob([byteArray], { type: mimeType });
+}
+
 export default function Home() {
   const DEFAULT_YEAR = "2075";
   const DEFAULT_THEME = THEMES[0];
@@ -111,6 +120,40 @@ export default function Home() {
 
   const inputsDisabled = loading;
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+
+  // ✅ Blob URLs to avoid iOS base64 rendering issues
+  const [imgUrlsById, setImgUrlsById] = useState<Record<string, string>>({});
+  const prevUrlsRef = useRef<string[]>([]);
+
+  // Build blob URLs whenever new images arrive; revoke old ones
+  useEffect(() => {
+    // cleanup old
+    for (const u of prevUrlsRef.current) URL.revokeObjectURL(u);
+    prevUrlsRef.current = [];
+    setImgUrlsById({});
+
+    const images = resp?.images;
+    if (!Array.isArray(images) || images.length === 0) return;
+
+    const next: Record<string, string> = {};
+    for (const img of images) {
+      if (!img?.id || !img?.base64 || !img?.mimeType) continue;
+      try {
+        const blob = base64ToBlob(img.base64, img.mimeType);
+        const url = URL.createObjectURL(blob);
+        next[String(img.id)] = url;
+        prevUrlsRef.current.push(url);
+      } catch {
+        // fallback: keep empty; we'll use data: URL in render if needed
+      }
+    }
+    setImgUrlsById(next);
+
+    return () => {
+      for (const u of prevUrlsRef.current) URL.revokeObjectURL(u);
+      prevUrlsRef.current = [];
+    };
+  }, [resp?.images]);
 
   function onReset() {
     if (loading) return;
@@ -215,6 +258,15 @@ export default function Home() {
           world: resp.world,
         }
       : null;
+
+  // helper: pick best src
+  function imgSrc(img: any) {
+    const id = String(img?.id ?? "");
+    const url = imgUrlsById[id];
+    if (url) return url;
+    // fallback
+    return `data:${img.mimeType};base64,${img.base64}`;
+  }
 
   return (
     <main className="min-h-screen p-6">
@@ -361,7 +413,7 @@ export default function Home() {
                     </div>
 
                     <img
-                      src={`data:${img.mimeType};base64,${img.base64}`}
+                      src={imgSrc(img)}
                       alt={img.landmark}
                       className="h-64 w-full object-cover"
                       loading="eager"
@@ -381,7 +433,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal (mobile-safe): image NOT inside scroll container */}
+      {/* ✅ Modal: details panel scrolls; blob URLs prevent iOS blank */}
       {modalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col">
@@ -408,10 +460,9 @@ export default function Home() {
 
             {/* body */}
             <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-              {/* Image panel: never scrolls (prevents iOS paint bug) */}
               <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 max-h-[45dvh] md:max-h-none">
                 <img
-                  src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
+                  src={imgSrc(modalData.img)}
                   alt={modalData.img.landmark}
                   className="w-full h-full object-contain"
                   loading="eager"
@@ -419,7 +470,6 @@ export default function Home() {
                 />
               </div>
 
-              {/* Details: the ONLY scroll container */}
               <div className="flex-1 min-h-0 overflow-y-auto modal-scroll p-5 border-t md:border-t-0 md:border-l">
                 <div className="text-sm font-semibold text-gray-900">How it differs in this timeline</div>
 
@@ -433,9 +483,7 @@ export default function Home() {
                         ))}
                       </ul>
                     ) : (
-                      <p className="mt-2 text-gray-500">
-                        Subtle civic upgrades + atmosphere changes consistent with the theme.
-                      </p>
+                      <p className="mt-2 text-gray-500">Subtle civic upgrades + atmosphere changes consistent with the theme.</p>
                     )}
                   </div>
 
