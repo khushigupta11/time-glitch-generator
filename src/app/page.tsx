@@ -457,7 +457,7 @@ export default function Home() {
             {/* Body: NOT scrollable. Image fixed. ONLY text scrolls. */}
             <div className="flex-1 min-h-0 flex flex-col md:flex-row">
               {/* Image: fixed visual box, no scrolling */}
-              <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 max-h-[45svh] md:max-h-none">
+              <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 h-[45svh] md:h-auto md:self-stretch">
                 <img
                   key={modalData.img.id}
                   src={imgSrc(modalData.img)}
