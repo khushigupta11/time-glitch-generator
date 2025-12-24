@@ -110,7 +110,6 @@ export default function Home() {
   }
 
   const inputsDisabled = loading;
-
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   function onReset() {
@@ -253,9 +252,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-900">
-                Glitch: {glitchLabel(glitch)}
-              </label>
+              <label className="text-sm font-medium text-gray-900">Glitch: {glitchLabel(glitch)}</label>
               <input
                 type="range"
                 min={0}
@@ -301,14 +298,10 @@ export default function Home() {
 
           {overload && (
             <div className="mt-4 rounded-2xl border bg-amber-50 p-4">
-              <div className="text-sm font-semibold text-amber-900">
-                Glitch surge — the model is overloaded
-              </div>
+              <div className="text-sm font-semibold text-amber-900">Glitch surge — the model is overloaded</div>
               <p className="mt-1 text-sm text-amber-800">
                 {overload.message}
-                {overload.phase ? (
-                  <span className="ml-1 text-amber-700">(phase: {overload.phase})</span>
-                ) : null}
+                {overload.phase ? <span className="ml-1 text-amber-700">(phase: {overload.phase})</span> : null}
               </p>
 
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -317,9 +310,7 @@ export default function Home() {
                   disabled={!canRetry}
                   className="rounded-xl bg-amber-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {cooldownRemainingMs > 0
-                    ? `Retry in ${Math.ceil(cooldownRemainingMs / 1000)}s`
-                    : "Retry now"}
+                  {cooldownRemainingMs > 0 ? `Retry in ${Math.ceil(cooldownRemainingMs / 1000)}s` : "Retry now"}
                 </button>
 
                 <span className="text-xs text-amber-800">
@@ -348,9 +339,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="mt-3 text-xs text-gray-500">
-                  Tip: click an image to expand + read what changed.
-                </div>
+                <div className="mt-3 text-xs text-gray-500">Tip: click an image to expand + read what changed.</div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -375,7 +364,8 @@ export default function Home() {
                       src={`data:${img.mimeType};base64,${img.base64}`}
                       alt={img.landmark}
                       className="h-64 w-full object-cover"
-                      draggable={false}
+                      loading="eager"
+                      decoding="async"
                     />
                   </button>
                 ))}
@@ -391,14 +381,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Modal: mobile-safe + scrollable (no backdrop click-to-close) */}
+      {/* ✅ Modal (mobile-safe): image NOT inside scroll container */}
       {modalData && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center pointer-events-none"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col">
             {/* header */}
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
               <div>
@@ -420,75 +406,66 @@ export default function Home() {
               </button>
             </div>
 
-            {/* single scroll container across devices */}
-            <div className="flex-1 min-h-0 modal-scroll overscroll-contain">
-              <div className="grid md:grid-cols-2">
-                {/* Left: image */}
-                <div className="bg-black flex items-center justify-center p-2">
-                  <img
-                    src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
-                    alt={modalData.img.landmark}
-                    className="w-full object-contain max-h-[42dvh] md:max-h-[calc(100dvh-2rem-73px)]"
-                    draggable={false}
-                  />
-                </div>
+            {/* body */}
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+              {/* Image panel: never scrolls (prevents iOS paint bug) */}
+              <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 max-h-[45dvh] md:max-h-none">
+                <img
+                  src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
+                  alt={modalData.img.landmark}
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+              </div>
 
-                {/* Right: details */}
-                <div className="p-5 border-t md:border-t-0 md:border-l">
-                  <div className="text-sm font-semibold text-gray-900">
-                    How it differs in this timeline
+              {/* Details: the ONLY scroll container */}
+              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll p-5 border-t md:border-t-0 md:border-l">
+                <div className="text-sm font-semibold text-gray-900">How it differs in this timeline</div>
+
+                <div className="mt-3 space-y-4 text-sm text-gray-700">
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs font-semibold text-gray-600">What changed (glitched modifications)</div>
+                    {modalData.plan?.changes?.length ? (
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {modalData.plan.changes.slice(0, 10).map((c: string, idx: number) => (
+                          <li key={`${idx}-${c}`}>{c}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-gray-500">
+                        Subtle civic upgrades + atmosphere changes consistent with the theme.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="mt-3 space-y-4 text-sm text-gray-700">
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs font-semibold text-gray-600">Still recognizable because…</div>
+                    {modalData.plan?.mustKeep?.length ? (
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {modalData.plan.mustKeep.slice(0, 10).map((m: string, idx: number) => (
+                          <li key={`${idx}-${m}`}>{m}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-gray-500">Core landmark form + Buffalo setting cues are preserved.</p>
+                    )}
+                  </div>
+
+                  {modalData.plan?.cameraHint ? (
                     <div className="rounded-xl border p-3">
-                      <div className="text-xs font-semibold text-gray-600">
-                        What changed (glitched modifications)
-                      </div>
-                      {modalData.plan?.changes?.length ? (
-                        <ul className="mt-2 list-disc space-y-1 pl-5">
-                          {modalData.plan.changes.slice(0, 10).map((c: string, idx: number) => (
-                            <li key={`${idx}-${c}`}>{c}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-2 text-gray-500">
-                          Subtle civic upgrades + atmosphere changes consistent with the theme.
-                        </p>
-                      )}
+                      <div className="text-xs font-semibold text-gray-600">Camera hint</div>
+                      <div className="mt-1 text-sm text-gray-700">{modalData.plan.cameraHint}</div>
                     </div>
+                  ) : null}
 
-                    <div className="rounded-xl border p-3">
-                      <div className="text-xs font-semibold text-gray-600">
-                        Still recognizable because…
-                      </div>
-                      {modalData.plan?.mustKeep?.length ? (
-                        <ul className="mt-2 list-disc space-y-1 pl-5">
-                          {modalData.plan.mustKeep.slice(0, 10).map((m: string, idx: number) => (
-                            <li key={`${idx}-${m}`}>{m}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-2 text-gray-500">
-                          Core landmark form + Buffalo setting cues are preserved.
-                        </p>
-                      )}
-                    </div>
-
-                    {modalData.plan?.cameraHint ? (
-                      <div className="rounded-xl border p-3">
-                        <div className="text-xs font-semibold text-gray-600">Camera hint</div>
-                        <div className="mt-1 text-sm text-gray-700">{modalData.plan.cameraHint}</div>
-                      </div>
-                    ) : null}
-
-                    <div className="text-xs text-gray-500">
-                      Tip: press <span className="font-semibold">Esc</span> to close.
-                    </div>
+                  <div className="text-xs text-gray-500">
+                    Tip: press <span className="font-semibold">Esc</span> to close.
                   </div>
                 </div>
               </div>
             </div>
-            {/* end modal body */}
+            {/* end body */}
           </div>
         </div>
       )}

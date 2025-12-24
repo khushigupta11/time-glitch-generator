@@ -81,10 +81,7 @@ body.modal-open {
   width: 100%;
   left: 0;
   right: 0;
-
-  /* DO NOT disable all touch events on body
-     This can break mobile rendering / tap handling. */
-  touch-action: auto;
+  touch-action: auto; /* don't block all touch events */
 }
 
 /* Scrollable area inside modal */
@@ -92,7 +89,5 @@ body.modal-open {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-
-  /* allow finger scrolling inside modal */
   touch-action: pan-y;
 }
