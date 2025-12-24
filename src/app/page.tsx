@@ -110,6 +110,7 @@ export default function Home() {
   }
 
   const inputsDisabled = loading;
+
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   function onReset() {
@@ -220,9 +221,7 @@ export default function Home() {
     <main className="min-h-screen p-6">
       <div className="mx-auto max-w-3xl">
         <h1 className="text-3xl font-bold">Buffalo Timeline Glitch Generator</h1>
-        <p className="mt-2 text-sm text-white/70">
-          One click → alternate-history Buffalo landmarks.
-        </p>
+        <p className="mt-2 text-sm text-white/70">One click → alternate-history Buffalo landmarks.</p>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/95 p-5 shadow-sm text-gray-900">
           <div className="grid gap-4 md:grid-cols-3">
@@ -376,6 +375,7 @@ export default function Home() {
                       src={`data:${img.mimeType};base64,${img.base64}`}
                       alt={img.landmark}
                       className="h-64 w-full object-cover"
+                      draggable={false}
                     />
                   </button>
                 ))}
@@ -391,23 +391,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: NO backdrop click-to-close (mobile-safe). Close via button or Esc. */}
+      {/* Modal: mobile-safe + scrollable (no backdrop click-to-close) */}
       {modalData && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center pointer-events-none"
           role="dialog"
           aria-modal="true"
         >
-          <div
-            className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
-          >
+          <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto">
             {/* header */}
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
               <div>
                 <div className="text-sm text-gray-500">Expanded view</div>
-                <div className="text-xl font-semibold text-gray-900">
-                  {modalData.img.landmark}
-                </div>
+                <div className="text-xl font-semibold text-gray-900">{modalData.img.landmark}</div>
                 <div className="mt-1 text-xs text-gray-500">
                   {modalData.world.theme} • {modalData.world.year} • glitch: {modalData.world.glitch}
                 </div>
@@ -424,15 +420,16 @@ export default function Home() {
               </button>
             </div>
 
-            {/* body: scrollable when needed */}
-            <div className="flex-1 min-h-0 modal-scroll overflow-y-auto">
-              <div className="grid md:grid-cols-2 md:min-h-full">
+            {/* single scroll container across devices */}
+            <div className="flex-1 min-h-0 modal-scroll overscroll-contain">
+              <div className="grid md:grid-cols-2">
                 {/* Left: image */}
                 <div className="bg-black flex items-center justify-center p-2">
                   <img
                     src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
                     alt={modalData.img.landmark}
                     className="w-full object-contain max-h-[42dvh] md:max-h-[calc(100dvh-2rem-73px)]"
+                    draggable={false}
                   />
                 </div>
 
@@ -502,6 +499,7 @@ export default function Home() {
 function useNowTick(ms: number) {
   const [now, setNow] = useState(() => Date.now());
   const msRef = useRef(ms);
+
   useEffect(() => {
     msRef.current = ms;
   }, [ms]);
@@ -510,5 +508,6 @@ function useNowTick(ms: number) {
     const id = setInterval(() => setNow(Date.now()), msRef.current);
     return () => clearInterval(id);
   }, []);
+
   return now;
 }

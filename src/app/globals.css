@@ -68,11 +68,6 @@ main {
   z-index: 1;
 }
 
-/* ---------------------------
-   Modal scroll/lock helpers
-   (Desktop + Android + iOS)
----------------------------- */
-
 /* Lock background scroll (apply to BOTH html + body) */
 html.modal-open,
 body.modal-open {
@@ -86,7 +81,10 @@ body.modal-open {
   width: 100%;
   left: 0;
   right: 0;
-  touch-action: none; /* blocks touch scrolling on the page */
+
+  /* DO NOT disable all touch events on body
+     This can break mobile rendering / tap handling. */
+  touch-action: auto;
 }
 
 /* Scrollable area inside modal */
@@ -94,5 +92,7 @@ body.modal-open {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y; /* allow vertical scroll inside the modal */
+
+  /* allow finger scrolling inside modal */
+  touch-action: pan-y;
 }
