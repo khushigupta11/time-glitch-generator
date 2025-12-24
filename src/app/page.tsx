@@ -429,7 +429,7 @@ export default function Home() {
       {/* Modal (NO backdrop click close; close button + Esc only) */}
       {modalData && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 transform-gpu"
           role="dialog"
           aria-modal="true"
         >
