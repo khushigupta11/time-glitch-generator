@@ -392,16 +392,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: background locked + modal scroll works on desktop + mobile + iOS */}
+      {/* ✅ Modal: iOS/Android-safe backdrop handling (pointerdown + target check) */}
       {modalData && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overscroll-contain"
           role="dialog"
           aria-modal="true"
-          onClick={() => setOpenIdx(null)}
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) setOpenIdx(null);
+          }}
         >
           <div
             className="w-full max-w-5xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
             {/* header */}
@@ -425,26 +428,19 @@ export default function Home() {
               </button>
             </div>
 
-            {/* ✅ key change:
-                - On mobile: whole area under header scrolls (so stacked layout works)
-                - On md+: keep split layout; right panel scrolls independently
-            */}
             <div className="flex-1 min-h-0 modal-scroll overflow-y-auto md:overflow-hidden">
               <div className="grid md:grid-cols-2 md:h-full">
-                {/* Left: image */}
                 <div className="bg-black flex items-center justify-center md:min-h-0">
                   <img
                     src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
                     alt={modalData.img.landmark}
                     className="w-full object-contain"
                     style={{
-                      // mobile: keep image reasonable; desktop: will naturally fit the md split
                       maxHeight: "calc(100vh - 2rem - 73px)",
                     }}
                   />
                 </div>
 
-                {/* Right: details (scrolls on desktop; on mobile it just flows inside the parent scroller) */}
                 <div className="md:min-h-0 md:overflow-y-auto md:modal-scroll p-5 border-t md:border-t-0 md:border-l">
                   <div className="text-sm font-semibold text-gray-900">
                     How it differs in this timeline
