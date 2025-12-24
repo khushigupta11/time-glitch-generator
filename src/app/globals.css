@@ -4,7 +4,7 @@
 :root {
   --bg: #0b1020;          /* deep blueprint navy */
   --fg: #e9eefc;          /* soft near-white */
-  --card: #0f1730;        /* dark card base (optional) */
+  --card: #0f1730;        /* optional card base */
 }
 
 html,
@@ -27,15 +27,11 @@ body::before {
   pointer-events: none;
   z-index: 0;
 
-  /* layered grids + subtle glow */
   background-image:
-    /* small grid */
     linear-gradient(rgba(120, 180, 255, 0.10) 1px, transparent 1px),
     linear-gradient(90deg, rgba(120, 180, 255, 0.10) 1px, transparent 1px),
-    /* large grid */
     linear-gradient(rgba(120, 180, 255, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(120, 180, 255, 0.06) 1px, transparent 1px),
-    /* faint radial “lab light” */
     radial-gradient(1200px 700px at 20% 15%, rgba(140, 200, 255, 0.14), transparent 60%),
     radial-gradient(900px 600px at 80% 10%, rgba(220, 140, 255, 0.10), transparent 55%);
 
@@ -47,18 +43,10 @@ body::before {
     auto,
     auto;
 
-  background-position:
-    0 0,
-    0 0,
-    0 0,
-    0 0,
-    center,
-    center;
-
+  background-position: 0 0, 0 0, 0 0, 0 0, center, center;
   opacity: 1;
 }
 
-/* Soft vignette */
 body::after {
   content: "";
   position: fixed;
@@ -74,8 +62,37 @@ body::after {
   );
 }
 
-/* Ensure your app content renders above overlays */
+/* Ensure app content renders above overlays */
 main {
   position: relative;
   z-index: 1;
+}
+
+/* ---------------------------
+   Modal scroll/lock helpers
+   (Desktop + Android + iOS)
+---------------------------- */
+
+/* Lock background scroll (apply to BOTH html + body) */
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+  height: 100%;
+}
+
+/* iOS: prevent scroll-through + keep layout stable */
+body.modal-open {
+  position: fixed;
+  width: 100%;
+  left: 0;
+  right: 0;
+  touch-action: none; /* blocks touch scrolling on the page */
+}
+
+/* Scrollable area inside modal */
+.modal-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y; /* allow vertical scroll inside the modal */
 }

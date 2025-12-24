@@ -111,7 +111,6 @@ export default function Home() {
 
   const inputsDisabled = loading;
 
-  // Modal state
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   function onReset() {
@@ -186,18 +185,31 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openIdx]);
 
-  // ✅ Lock background scroll when modal is open
+  // Lock background scroll when modal is open (iOS-safe)
   useEffect(() => {
     if (openIdx === null) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    const scrollY = window.scrollY || 0;
+    document.body.dataset.scrollY = String(scrollY);
+
+    document.documentElement.classList.add("modal-open");
+    document.body.classList.add("modal-open");
+    document.body.style.top = `-${scrollY}px`;
+
     return () => {
-      document.body.style.overflow = prev;
+      const y = Number(document.body.dataset.scrollY || "0");
+
+      document.documentElement.classList.remove("modal-open");
+      document.body.classList.remove("modal-open");
+      document.body.style.top = "";
+      delete document.body.dataset.scrollY;
+
+      window.scrollTo(0, y);
     };
   }, [openIdx]);
 
   const modalData =
-    openIdx !== null && resp?.world && Array.isArray(resp?.images) && resp.images[openIdx]
+    openIdx !== null && resp?.world && Array.isArray(resp?.images)
       ? {
           img: resp.images[openIdx],
           plan: resp.world.landmarks?.[openIdx],
@@ -208,8 +220,10 @@ export default function Home() {
   return (
     <main className="min-h-screen p-6">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-bold text-white">Buffalo Timeline Glitch Generator</h1>
-        <p className="mt-2 text-sm text-white/70">One click → alternate-history Buffalo landmarks.</p>
+        <h1 className="text-3xl font-bold">Buffalo Timeline Glitch Generator</h1>
+        <p className="mt-2 text-sm text-white/70">
+          One click → alternate-history Buffalo landmarks.
+        </p>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/95 p-5 shadow-sm text-gray-900">
           <div className="grid gap-4 md:grid-cols-3">
@@ -378,10 +392,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: now fits viewport at 100% zoom */}
+      {/* ✅ Modal: background locked + modal scroll works on desktop + mobile + iOS */}
       {modalData && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overscroll-contain"
           role="dialog"
           aria-modal="true"
           onClick={() => setOpenIdx(null)}
@@ -390,6 +404,7 @@ export default function Home() {
             className="w-full max-w-5xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* header */}
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
               <div>
                 <div className="text-sm text-gray-500">Expanded view</div>
@@ -410,21 +425,27 @@ export default function Home() {
               </button>
             </div>
 
-            {/* critical: allow inner scroll */}
-            <div className="flex-1 min-h-0">
-              <div className="grid h-full md:grid-cols-2">
-                {/* Left: image stays contained */}
-                <div className="bg-black flex items-center justify-center min-h-0">
+            {/* ✅ key change:
+                - On mobile: whole area under header scrolls (so stacked layout works)
+                - On md+: keep split layout; right panel scrolls independently
+            */}
+            <div className="flex-1 min-h-0 modal-scroll overflow-y-auto md:overflow-hidden">
+              <div className="grid md:grid-cols-2 md:h-full">
+                {/* Left: image */}
+                <div className="bg-black flex items-center justify-center md:min-h-0">
                   <img
                     src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
                     alt={modalData.img.landmark}
-                    className="max-h-full w-full object-contain"
-                    style={{ maxHeight: "calc(100vh - 2rem - 73px)" }} // 73px ≈ header height
+                    className="w-full object-contain"
+                    style={{
+                      // mobile: keep image reasonable; desktop: will naturally fit the md split
+                      maxHeight: "calc(100vh - 2rem - 73px)",
+                    }}
                   />
                 </div>
 
-                {/* Right: scrollable panel */}
-                <div className="min-h-0 overflow-y-auto p-5">
+                {/* Right: details (scrolls on desktop; on mobile it just flows inside the parent scroller) */}
+                <div className="md:min-h-0 md:overflow-y-auto md:modal-scroll p-5 border-t md:border-t-0 md:border-l">
                   <div className="text-sm font-semibold text-gray-900">
                     How it differs in this timeline
                   </div>
@@ -436,7 +457,7 @@ export default function Home() {
                       </div>
                       {modalData.plan?.changes?.length ? (
                         <ul className="mt-2 list-disc space-y-1 pl-5">
-                          {modalData.plan.changes.slice(0, 8).map((c: string, idx: number) => (
+                          {modalData.plan.changes.slice(0, 10).map((c: string, idx: number) => (
                             <li key={`${idx}-${c}`}>{c}</li>
                           ))}
                         </ul>
@@ -453,7 +474,7 @@ export default function Home() {
                       </div>
                       {modalData.plan?.mustKeep?.length ? (
                         <ul className="mt-2 list-disc space-y-1 pl-5">
-                          {modalData.plan.mustKeep.slice(0, 8).map((m: string, idx: number) => (
+                          {modalData.plan.mustKeep.slice(0, 10).map((m: string, idx: number) => (
                             <li key={`${idx}-${m}`}>{m}</li>
                           ))}
                         </ul>
@@ -478,7 +499,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {/* end inner */}
+            {/* end modal body */}
           </div>
         </div>
       )}
