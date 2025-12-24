@@ -75,19 +75,23 @@ body.modal-open {
   height: 100%;
 }
 
-/* iOS: prevent scroll-through + keep layout stable */
+/* iOS-safe: freeze body at current scroll position (we set body.style.top in JS) */
 body.modal-open {
   position: fixed;
   width: 100%;
   left: 0;
   right: 0;
-  touch-action: auto; /* don't block all touch events */
+
+  /* IMPORTANT: don't disable all touch events, it can break modal rendering/scrolling */
+  touch-action: auto;
 }
 
-/* Scrollable area inside modal */
+/* The scroll container INSIDE the modal */
 .modal-scroll {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+
+  /* allow finger scroll in this element */
   touch-action: pan-y;
 }

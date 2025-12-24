@@ -60,15 +60,6 @@ function stageLabel(s: Stage) {
   }
 }
 
-/** Convert base64 (no data: prefix) -> Blob */
-function base64ToBlob(base64: string, mimeType: string) {
-  const byteChars = atob(base64);
-  const byteNums = new Array(byteChars.length);
-  for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-  const byteArray = new Uint8Array(byteNums);
-  return new Blob([byteArray], { type: mimeType });
-}
-
 export default function Home() {
   const DEFAULT_YEAR = "2075";
   const DEFAULT_THEME = THEMES[0];
@@ -120,40 +111,6 @@ export default function Home() {
 
   const inputsDisabled = loading;
   const [openIdx, setOpenIdx] = useState<number | null>(null);
-
-  // ✅ Blob URLs to avoid iOS base64 rendering issues
-  const [imgUrlsById, setImgUrlsById] = useState<Record<string, string>>({});
-  const prevUrlsRef = useRef<string[]>([]);
-
-  // Build blob URLs whenever new images arrive; revoke old ones
-  useEffect(() => {
-    // cleanup old
-    for (const u of prevUrlsRef.current) URL.revokeObjectURL(u);
-    prevUrlsRef.current = [];
-    setImgUrlsById({});
-
-    const images = resp?.images;
-    if (!Array.isArray(images) || images.length === 0) return;
-
-    const next: Record<string, string> = {};
-    for (const img of images) {
-      if (!img?.id || !img?.base64 || !img?.mimeType) continue;
-      try {
-        const blob = base64ToBlob(img.base64, img.mimeType);
-        const url = URL.createObjectURL(blob);
-        next[String(img.id)] = url;
-        prevUrlsRef.current.push(url);
-      } catch {
-        // fallback: keep empty; we'll use data: URL in render if needed
-      }
-    }
-    setImgUrlsById(next);
-
-    return () => {
-      for (const u of prevUrlsRef.current) URL.revokeObjectURL(u);
-      prevUrlsRef.current = [];
-    };
-  }, [resp?.images]);
 
   function onReset() {
     if (loading) return;
@@ -227,29 +184,6 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openIdx]);
 
-  // Lock background scroll when modal is open (iOS-safe)
-  useEffect(() => {
-    if (openIdx === null) return;
-
-    const scrollY = window.scrollY || 0;
-    document.body.dataset.scrollY = String(scrollY);
-
-    document.documentElement.classList.add("modal-open");
-    document.body.classList.add("modal-open");
-    document.body.style.top = `-${scrollY}px`;
-
-    return () => {
-      const y = Number(document.body.dataset.scrollY || "0");
-
-      document.documentElement.classList.remove("modal-open");
-      document.body.classList.remove("modal-open");
-      document.body.style.top = "";
-      delete document.body.dataset.scrollY;
-
-      window.scrollTo(0, y);
-    };
-  }, [openIdx]);
-
   const modalData =
     openIdx !== null && resp?.world && Array.isArray(resp?.images)
       ? {
@@ -259,20 +193,69 @@ export default function Home() {
         }
       : null;
 
-  // helper: pick best src
   function imgSrc(img: any) {
-    const id = String(img?.id ?? "");
-    const url = imgUrlsById[id];
-    if (url) return url;
-    // fallback
     return `data:${img.mimeType};base64,${img.base64}`;
   }
+
+  // ---- iOS-safe background lock + allow scroll ONLY inside text panel ----
+  const textScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!modalData) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    // Save scroll position and lock background (most reliable on iOS)
+    const scrollY = window.scrollY || 0;
+
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    // Prevent touch scrolling unless it starts inside text scroller
+    const onTouchMove = (e: TouchEvent) => {
+      const scroller = textScrollRef.current;
+      if (!scroller) {
+        e.preventDefault();
+        return;
+      }
+      const target = e.target as Node | null;
+      const inside = !!(target && scroller.contains(target));
+      if (!inside) e.preventDefault();
+    };
+
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchmove", onTouchMove as any);
+
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+
+      // Restore scroll position
+      window.scrollTo(0, scrollY);
+    };
+  }, [modalData]);
 
   return (
     <main className="min-h-screen p-6">
       <div className="mx-auto max-w-3xl">
         <h1 className="text-3xl font-bold">Buffalo Timeline Glitch Generator</h1>
-        <p className="mt-2 text-sm text-white/70">One click → alternate-history Buffalo landmarks.</p>
+        <p className="mt-2 text-sm text-white/70">
+          One click → alternate-history Buffalo landmarks.
+        </p>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/95 p-5 shadow-sm text-gray-900">
           <div className="grid gap-4 md:grid-cols-3">
@@ -304,7 +287,9 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-900">Glitch: {glitchLabel(glitch)}</label>
+              <label className="text-sm font-medium text-gray-900">
+                Glitch: {glitchLabel(glitch)}
+              </label>
               <input
                 type="range"
                 min={0}
@@ -350,10 +335,14 @@ export default function Home() {
 
           {overload && (
             <div className="mt-4 rounded-2xl border bg-amber-50 p-4">
-              <div className="text-sm font-semibold text-amber-900">Glitch surge — the model is overloaded</div>
+              <div className="text-sm font-semibold text-amber-900">
+                Glitch surge — the model is overloaded
+              </div>
               <p className="mt-1 text-sm text-amber-800">
                 {overload.message}
-                {overload.phase ? <span className="ml-1 text-amber-700">(phase: {overload.phase})</span> : null}
+                {overload.phase ? (
+                  <span className="ml-1 text-amber-700">(phase: {overload.phase})</span>
+                ) : null}
               </p>
 
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -362,7 +351,9 @@ export default function Home() {
                   disabled={!canRetry}
                   className="rounded-xl bg-amber-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {cooldownRemainingMs > 0 ? `Retry in ${Math.ceil(cooldownRemainingMs / 1000)}s` : "Retry now"}
+                  {cooldownRemainingMs > 0
+                    ? `Retry in ${Math.ceil(cooldownRemainingMs / 1000)}s`
+                    : "Retry now"}
                 </button>
 
                 <span className="text-xs text-amber-800">
@@ -391,7 +382,9 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="mt-3 text-xs text-gray-500">Tip: click an image to expand + read what changed.</div>
+                <div className="mt-3 text-xs text-gray-500">
+                  Tip: click an image to expand + read what changed.
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -433,11 +426,14 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: details panel scrolls; blob URLs prevent iOS blank */}
+      {/* Modal (NO backdrop click close; close button + Esc only) */}
       {modalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col">
-            {/* header */}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-5xl max-h-[calc(100svh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col">
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
               <div>
                 <div className="text-sm text-gray-500">Expanded view</div>
@@ -458,10 +454,12 @@ export default function Home() {
               </button>
             </div>
 
-            {/* body */}
+            {/* Body: NOT scrollable. Image fixed. ONLY text scrolls. */}
             <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-              <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 max-h-[45dvh] md:max-h-none">
+              {/* Image: fixed visual box, no scrolling */}
+              <div className="bg-black flex items-center justify-center shrink-0 md:w-1/2 max-h-[45svh] md:max-h-none">
                 <img
+                  key={modalData.img.id}
                   src={imgSrc(modalData.img)}
                   alt={modalData.img.landmark}
                   className="w-full h-full object-contain"
@@ -470,12 +468,20 @@ export default function Home() {
                 />
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll p-5 border-t md:border-t-0 md:border-l">
-                <div className="text-sm font-semibold text-gray-900">How it differs in this timeline</div>
+              {/* Text: the ONLY scroller */}
+              <div
+                ref={textScrollRef}
+                className="flex-1 min-h-0 overflow-y-auto modal-scroll p-5 border-t md:border-t-0 md:border-l"
+              >
+                <div className="text-sm font-semibold text-gray-900">
+                  How it differs in this timeline
+                </div>
 
                 <div className="mt-3 space-y-4 text-sm text-gray-700">
                   <div className="rounded-xl border p-3">
-                    <div className="text-xs font-semibold text-gray-600">What changed (glitched modifications)</div>
+                    <div className="text-xs font-semibold text-gray-600">
+                      What changed (glitched modifications)
+                    </div>
                     {modalData.plan?.changes?.length ? (
                       <ul className="mt-2 list-disc space-y-1 pl-5">
                         {modalData.plan.changes.slice(0, 10).map((c: string, idx: number) => (
@@ -483,12 +489,16 @@ export default function Home() {
                         ))}
                       </ul>
                     ) : (
-                      <p className="mt-2 text-gray-500">Subtle civic upgrades + atmosphere changes consistent with the theme.</p>
+                      <p className="mt-2 text-gray-500">
+                        Subtle civic upgrades + atmosphere changes consistent with the theme.
+                      </p>
                     )}
                   </div>
 
                   <div className="rounded-xl border p-3">
-                    <div className="text-xs font-semibold text-gray-600">Still recognizable because…</div>
+                    <div className="text-xs font-semibold text-gray-600">
+                      Still recognizable because…
+                    </div>
                     {modalData.plan?.mustKeep?.length ? (
                       <ul className="mt-2 list-disc space-y-1 pl-5">
                         {modalData.plan.mustKeep.slice(0, 10).map((m: string, idx: number) => (
@@ -496,7 +506,9 @@ export default function Home() {
                         ))}
                       </ul>
                     ) : (
-                      <p className="mt-2 text-gray-500">Core landmark form + Buffalo setting cues are preserved.</p>
+                      <p className="mt-2 text-gray-500">
+                        Core landmark form + Buffalo setting cues are preserved.
+                      </p>
                     )}
                   </div>
 
@@ -513,7 +525,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {/* end body */}
+            {/* end modal body */}
           </div>
         </div>
       )}
