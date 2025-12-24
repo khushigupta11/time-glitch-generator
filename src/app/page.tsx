@@ -113,6 +113,18 @@ export default function Home() {
 
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
+  // ✅ Prevent mobile “tap-through” from instantly closing the modal
+  const [backdropArmed, setBackdropArmed] = useState(false);
+  useEffect(() => {
+    if (openIdx === null) {
+      setBackdropArmed(false);
+      return;
+    }
+    setBackdropArmed(false);
+    const id = window.setTimeout(() => setBackdropArmed(true), 250);
+    return () => window.clearTimeout(id);
+  }, [openIdx]);
+
   function onReset() {
     if (loading) return;
 
@@ -392,18 +404,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: iOS/Android-safe backdrop handling (pointerdown + target check) */}
+      {/* ✅ Modal: tap-through-safe on mobile + scrollable body */}
       {modalData && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overscroll-contain"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           role="dialog"
           aria-modal="true"
           onPointerDown={(e) => {
+            if (!backdropArmed) return;
             if (e.target === e.currentTarget) setOpenIdx(null);
           }}
         >
           <div
-            className="w-full max-w-5xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
+            className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -411,7 +424,9 @@ export default function Home() {
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
               <div>
                 <div className="text-sm text-gray-500">Expanded view</div>
-                <div className="text-xl font-semibold text-gray-900">{modalData.img.landmark}</div>
+                <div className="text-xl font-semibold text-gray-900">
+                  {modalData.img.landmark}
+                </div>
                 <div className="mt-1 text-xs text-gray-500">
                   {modalData.world.theme} • {modalData.world.year} • glitch: {modalData.world.glitch}
                 </div>
@@ -428,20 +443,20 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 modal-scroll overflow-y-auto md:overflow-hidden">
-              <div className="grid md:grid-cols-2 md:h-full">
-                <div className="bg-black flex items-center justify-center md:min-h-0">
+            {/* body: always scrollable if needed */}
+            <div className="flex-1 min-h-0 modal-scroll overflow-y-auto">
+              <div className="grid md:grid-cols-2 md:min-h-full">
+                {/* Left: image */}
+                <div className="bg-black flex items-center justify-center p-2">
                   <img
                     src={`data:${modalData.img.mimeType};base64,${modalData.img.base64}`}
                     alt={modalData.img.landmark}
-                    className="w-full object-contain"
-                    style={{
-                      maxHeight: "calc(100vh - 2rem - 73px)",
-                    }}
+                    className="w-full object-contain max-h-[42dvh] md:max-h-[calc(100dvh-2rem-73px)]"
                   />
                 </div>
 
-                <div className="md:min-h-0 md:overflow-y-auto md:modal-scroll p-5 border-t md:border-t-0 md:border-l">
+                {/* Right: details */}
+                <div className="p-5 border-t md:border-t-0 md:border-l">
                   <div className="text-sm font-semibold text-gray-900">
                     How it differs in this timeline
                   </div>
