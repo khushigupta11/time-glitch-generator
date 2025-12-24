@@ -199,6 +199,7 @@ export default function Home() {
 
   // ---- iOS-safe background lock + allow scroll ONLY inside text panel ----
   const textScrollRef = useRef<HTMLDivElement | null>(null);
+  const modalRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!modalData) return;
@@ -223,14 +224,10 @@ export default function Home() {
 
     // Prevent touch scrolling unless it starts inside text scroller
     const onTouchMove = (e: TouchEvent) => {
-      const scroller = textScrollRef.current;
-      if (!scroller) {
-        e.preventDefault();
-        return;
-      }
+      const modalRoot = modalRootRef.current;
       const target = e.target as Node | null;
-      const inside = !!(target && scroller.contains(target));
-      if (!inside) e.preventDefault();
+      if (modalRoot && target && modalRoot.contains(target)) return;
+      e.preventDefault();
     };
 
     document.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -429,6 +426,7 @@ export default function Home() {
       {/* Modal (NO backdrop click close; close button + Esc only) */}
       {modalData && (
         <div
+          ref={modalRootRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 transform-gpu"
           role="dialog"
           aria-modal="true"
