@@ -110,20 +110,7 @@ export default function Home() {
   }
 
   const inputsDisabled = loading;
-
   const [openIdx, setOpenIdx] = useState<number | null>(null);
-
-  // ✅ Prevent mobile “tap-through” from instantly closing the modal
-  const [backdropArmed, setBackdropArmed] = useState(false);
-  useEffect(() => {
-    if (openIdx === null) {
-      setBackdropArmed(false);
-      return;
-    }
-    setBackdropArmed(false);
-    const id = window.setTimeout(() => setBackdropArmed(true), 250);
-    return () => window.clearTimeout(id);
-  }, [openIdx]);
 
   function onReset() {
     if (loading) return;
@@ -404,21 +391,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ✅ Modal: tap-through-safe on mobile + scrollable body */}
+      {/* ✅ Modal: NO backdrop click-to-close (mobile-safe). Close via button or Esc. */}
       {modalData && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           role="dialog"
           aria-modal="true"
-          onPointerDown={(e) => {
-            if (!backdropArmed) return;
-            if (e.target === e.currentTarget) setOpenIdx(null);
-          }}
         >
           <div
             className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
           >
             {/* header */}
             <div className="flex items-start justify-between gap-4 border-b p-4 shrink-0">
@@ -443,7 +424,7 @@ export default function Home() {
               </button>
             </div>
 
-            {/* body: always scrollable if needed */}
+            {/* body: scrollable when needed */}
             <div className="flex-1 min-h-0 modal-scroll overflow-y-auto">
               <div className="grid md:grid-cols-2 md:min-h-full">
                 {/* Left: image */}
